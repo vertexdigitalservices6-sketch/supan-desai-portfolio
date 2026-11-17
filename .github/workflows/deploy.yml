@@ -1,0 +1,62 @@
+
+name: Build and Deploy Supan Portfolio
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract portfolio source
+        run: |
+          unzip -q portfolio-source.zip -d site
+          test -f site/package.json
+
+      - name: Configure React routing
+        run: |
+          mkdir -p site/public
+          cat > site/public/.htaccess <<'EOF'
+          <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteBase /
+            RewriteCond %{REQUEST_FILENAME} -f [OR]
+            RewriteCond %{REQUEST_FILENAME} -d
+            RewriteRule ^ - [L]
+            RewriteRule ^ index.html [L]
+          </IfModule>
+          EOF
+
+      - name: Install dependencies
+        working-directory: site
+        run: npm install
+
+      - name: Build website
+        working-directory: site
+        run: npm run build
+
+      - name: Deploy to InfinityFree
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          local-dir: site/dist/
+          server-dir: /htdocs/
